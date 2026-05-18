@@ -97,11 +97,11 @@ class SignalProcessor:
         # 计算目标频段功率
         freqs, psd = welch(filtered, fs=self.sample_rate, nperseg=int(window_sec * self.sample_rate))
 
-        band_power = np.trapz(psd, freqs)
+        band_power = np.trapezoid(psd, freqs)
 
         # 计算总功率
         freqs_all, psd_all = welch(data, fs=self.sample_rate, nperseg=int(window_sec * self.sample_rate))
-        total_power = np.trapz(psd_all, freqs_all)
+        total_power = np.trapezoid(psd_all, freqs_all)
 
         if total_power == 0:
             return 0.0

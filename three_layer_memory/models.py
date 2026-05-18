@@ -66,6 +66,9 @@ class DreamContent:
     lucidity: float = 0.0
     narrative: Optional[str] = None
 
+    def __post_init__(self):
+        self.lucidity = max(0.0, min(1.0, self.lucidity))
+
 
 @dataclass
 class Subject:
@@ -125,9 +128,10 @@ class SleepRecording:
     def sleep_efficiency(self) -> float:
         """
         睡眠效率 = (总睡眠时间 / 总记录时间) × 100%
+        仅计入非WAKE阶段作为睡眠时间
         """
-        total = sum(s.duration_min for s in self.stages)
         if not self.stages:
             return 0.0
+        total_sleep = sum(s.duration_min for s in self.stages if s.label != StageLabel.WAKE)
         record_min = self.stages[-1].end_sec / 60.0
-        return (total / record_min * 100) if record_min > 0 else 0.0
+        return (total_sleep / record_min * 100) if record_min > 0 else 0.0

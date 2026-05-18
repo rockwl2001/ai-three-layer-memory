@@ -8,6 +8,7 @@ import logging
 from pathlib import Path
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any
+import numpy as np
 
 from .models import SleepStage, SleepRecording, StageLabel, DreamContent, Subject
 from .core import SignalProcessor, SignalSegment
@@ -82,6 +83,7 @@ class SleepAnalyzer:
                 return True
 
             elif suffix == ".json":
+                import numpy as np
                 with open(filepath, "r", encoding="utf-8") as f:
                     raw = json.load(f)
 
@@ -276,10 +278,11 @@ class SleepAnalyzer:
 
     def _estimate_lucidity(self, stage: SleepStage) -> float:
         """估算清醒梦境指数"""
-        base = 0.1
+        if stage.label == StageLabel.WAKE:
+            return 0.0
         if stage.label == StageLabel.REM:
-            base = 0.4 + 0.2 * stage.confidence
-        return min(base, 1.0)
+            return 0.4 + 0.2 * stage.confidence
+        return 0.0
 
     def generate_report(
         self, stages: List[SleepStage], output_path: Optional[str] = None
