@@ -1,73 +1,97 @@
-# AI Agent 三层记忆系统与梦境系统
+# Agent Memory System — AI Agent 三层记忆系统
 
-> 探索睡眠阶段与梦境内容关联性的开源工具包
+> 让 AI Agent 拥有跨会话的持久记忆，支持对话中途 offload / load，以及夜间梦境自动整合。
 
-[![Python](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+## 架构
 
-## 概述
+```
+L0  工作记忆   → 内存，对话存活
+L1  情景记忆   → SQLite (episodes.db)，高精度上下文
+L2  语义记忆   → MEMORY.md（事实） + USER.md（偏好），长期沉淀
+L2  项目知识卡 → SQLite (episodes.db project_knowledge 表)，可复用技能
+```
 
-本项目是一个基于 AI Agent 三层记忆架构的睡眠与梦境分析开源工具包。通过模拟人类记忆的三层结构（短期记忆、工作记忆、长期记忆），结合多模态睡眠生理信号（EEG、EMG、EOG），自动标注睡眠阶段，挖掘梦境内容模式，帮助研究者建立睡眠生理与主观梦境体验之间的关联模型。
+## 核心模块
 
-## 核心功能
-
-- **三层记忆引擎**：短期记忆（实时感知）→ 工作记忆（信息整合）→ 长期记忆（知识沉淀）
-- **多模态数据导入**：支持 EDF、CSV、JSON 格式的睡眠生理数据
-- **睡眠阶段标注**：基于 American Academy of Sleep Medicine (AASM) 标准自动分阶段
-- **梦境内容分析**：提取关键词、情感标签、意象类型
-- **可视化报告**：生成个人睡眠-梦境分析 PDF 报告
-- **数据导出**：支持与 Excel、Notion 等工具联动
+| 模块 | 用途 |
+|------|------|
+| `agent_memory.episodic` | L1 SQLite 情景记忆，读写对话片段、任务状态 |
+| `agent_memory.semantic` | L2 Markdown 读写，六维评分 + Jaccard 去重 |
+| `agent_memory.offloader` | 对话中途 offload/load 接口 |
+| `agent_memory.dream` | 夜间梦境整合（Light→REM→Deep 三阶段） |
+| `agent_memory.knowledge` | 项目知识卡存储（Hermes Skills 思路） |
+| `agent_memory.server` | REST API 接口，供 AI Agent 调用 |
 
 ## 安装
 
 ```bash
-pip install three_layer_memory
-```
-
-或从源码安装：
-
-```bash
-git clone https://github.com/YOUR_USERNAME/three_layer_memory.git
-cd three_layer_memory
 pip install -e .
 ```
 
-## 快速开始
-
-```python
-from three_layer_memory import SleepAnalyzer
-
-analyzer = SleepAnalyzer()
-analyzer.load_eeg("path/to/your/eeg_data.edf")
-stages = analyzer.auto_stage()
-report = analyzer.generate_report(stages)
-report.save("sleep_dream_report.pdf")
-```
-
-## 项目结构
-
-```
-three_layer_memory/
-├── models/         # 三层记忆数据模型
-├── core/          # 核心信号处理引擎
-├── analyzer.py    # 主分析器
-└── utils.py       # 工具函数
-```
-
-## 测试
+## 接口服务器
 
 ```bash
-pytest tests/
+python -m agent_memory.server
 ```
 
-## 适用场景
+启动后访问 `http://127.0.0.1:38472/`。
 
-- AI Agent 记忆系统研究与开发
-- 睡眠医学
-- 认知科学
-- 个人睡眠追踪爱好者
-- AI + 心理学交叉研究
+## 核心接口
 
-## 许可证
+### 对话中途 Offload
 
-本项目采用 MIT 许可证，详见 [LICENSE](LICENSE) 文件。
+```python
+from agent_memory.offloader import MemoryOffloader
+
+loader = MemoryOffloader(session_id="session_001", project="video2text")
+
+# 用户消息后
+loader.add_turn("user", "我想继续昨天的转写任务")
+
+# AI 回复后
+loader.add_turn("assistant", "好的，找到你的任务 ID...")
+
+# 工具调用后（≥5次自动创建知识卡）
+loader.emit_tool_call()
+
+# 任务切换或结束
+loader.offload_current(summary="用户想继续 video2text 任务")
+```
+
+### 召回上下文
+
+```python
+context = loader.load_context(
+    query="昨天那个转写任务进展如何",
+    project="video2text",
+)
+# → 返回相关记忆片段拼接文本
+```
+
+### 夜间梦境整合（cron）
+
+```bash
+python -m agent_memory.dream
+```
+
+每天 23:00 自动运行：
+1. Light：收集当天所有情景片段
+2. REM：提取主题模式
+3. Deep：六维评分，满足门槛的条目写入 MEMORY.md / USER.md
+
+## 数据库
+
+SQLite 文件：`agent_memory/episodes.db`（自动创建）
+
+表：
+- `episodes` — 情景片段
+- `tasks` — 任务状态
+- `offload_log` — offload 历史
+- `daily_summaries` — 每日摘要
+- `project_knowledge` — 项目知识卡
+
+## 参考
+
+- OpenClaw Dreaming：三阶段（Light/REM/Deep）+ 六维评分
+- Hermes Agent：MEMORY.md/USER.md 双文件 + Skills 闭环
+- 腾讯 TencentDB Agent Memory：Context Offloading + Mermaid 任务图

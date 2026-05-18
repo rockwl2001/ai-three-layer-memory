@@ -76,3 +76,4 @@ logs/
 temp/
 *.pdf
 output/
+*.db
